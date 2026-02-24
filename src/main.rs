@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::str::FromStr;
+use serde::{Serialize, Deserialize};
 
 fn get_input<T: FromStr>(prompt: &str) -> T {
     loop {
@@ -18,14 +19,14 @@ fn get_input<T: FromStr>(prompt: &str) -> T {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 enum Category {
     Food,
     Electronic,
     Clothing,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Product {
     name: String,
     price: f32,
@@ -40,14 +41,14 @@ impl Product {
 }
 
 fn main() {
-    let mut warehouse: Vec<Product> = Vec::new();
+    let mut warehouse: Vec<Product> = load_from_csv();
     
     loop {
         println!("\n📦 --- Warehouse Management System ---");
         println!("1. Add Product");
         println!("2. List All Products");
         println!("3. Search Product");
-        println!("4. Exit");
+        println!("4. Save and Exit");
 
         let choice = get_input::<i32>("👉 Enter your choice: ");
 
@@ -101,6 +102,10 @@ fn main() {
                 }
             }
             4 => {
+                match save_to_csv(&warehouse) {
+                    Ok(_) => println!("💾 Data saved to inventory.csv successfully!"),
+                    Err(e) => println!("❌ Error saving data: {}", e),
+                }
                 println!("👋 Goodbye!");
                 break;
             }
@@ -110,21 +115,57 @@ fn main() {
 }
 
 fn display_table(products: &Vec<Product>) {
-    println!("\n{:<3} | {:<12} | {:<12} | {:<8} | {:<5} | {:<12}", 
-             "ID", "Name", "Category", "Price", "Qty", "Total Value");
-    println!("{:-<70}", ""); 
+    println!("\n{:-<69}", "");
+    println!("{:<3} | {:<12} | {:<12} | {:>10} | {:>5} | {:>12}", 
+             "ID", "Name", "Category", "Price", "Qty", "Total");
+    println!("{:-<69}", "");
+
     for (i, p) in products.iter().enumerate() {
-        println!("{:<3} | {:<12} | {:<12?} | {:<8.2} | {:<5} | {:<12.2}",
-                 i + 1, p.name, p.category, p.price, p.number_of_items, p.total_value());
+        let cat_str = format!("{:?}", p.category);
+        let name_str = if p.name.len() > 12 { p.name[..12].to_string() } else { p.name.clone() };
+        
+        println!("{:<3} | {:<12} | {:<12} | {:>10.2} | {:>5} | {:>12.2}",
+                 i + 1, name_str, cat_str, p.price, p.number_of_items, p.total_value());
     }
+    println!("{:-<69}", "");
 }
 
 fn display_filtered_table(products: Vec<&Product>) {
-    println!("\n{:<12} | {:<12} | {:<8} | {:<5} | {:<12}", 
-             "Name", "Category", "Price", "Qty", "Total Value");
-    println!("{:-<60}", ""); 
+    println!("\n{:-<62}", "");
+    println!("{:<12} | {:<12} | {:>10} | {:>5} | {:>12}", 
+             "Name", "Category", "Price", "Qty", "Total");
+    println!("{:-<62}", "");
+
     for p in products {
-        println!("{:<12} | {:<12?} | {:<8.2} | {:<5} | {:<12.2}",
-                 p.name, p.category, p.price, p.number_of_items, p.total_value());
+        let cat_str = format!("{:?}", p.category);
+        let name_str = if p.name.len() > 12 { p.name[..12].to_string() } else { p.name.clone() };
+
+        println!("{:<12} | {:<12} | {:>10.2} | {:>5} | {:>12.2}",
+                 name_str, cat_str, p.price, p.number_of_items, p.total_value());
     }
+    println!("{:-<62}", "");
+}
+
+fn save_to_csv(products: &Vec<Product>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut writer = csv::Writer::from_path("inventory.csv")?;
+    for product in products {
+        writer.serialize(product)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+fn load_from_csv() -> Vec<Product> {
+    let mut products = Vec::new();
+    if let Ok(mut reader) = csv::Reader::from_path("inventory.csv") {
+        for result in reader.deserialize() {
+            if let Ok(product) = result {
+                products.push(product);
+            }
+        }
+        println!("📂 Data loaded from inventory.csv successfully!");
+    } else {
+        println!("ℹ️ No existing inventory file found. Starting fresh.");
+    }
+    products
 }
