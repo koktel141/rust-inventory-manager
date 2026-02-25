@@ -2,7 +2,6 @@ use std::io::{self, Write};
 use std::str::FromStr;
 use serde::{Serialize, Deserialize};
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum Category {
     Food,
@@ -24,7 +23,6 @@ impl Product {
     }
 }
 
-
 fn get_input<T: FromStr>(prompt: &str) -> T {
     loop {
         print!("{}", prompt);
@@ -39,7 +37,6 @@ fn get_input<T: FromStr>(prompt: &str) -> T {
         }
     }
 }
-
 
 fn display_table(products: &Vec<Product>) {
     let line = "-".repeat(72);
@@ -75,7 +72,6 @@ fn display_filtered_table(products: Vec<&Product>) {
     println!("{}", line);
 }
 
-
 fn save_to_csv(products: &Vec<Product>) -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = csv::Writer::from_path("inventory.csv")?;
     for product in products {
@@ -100,7 +96,6 @@ fn load_from_csv() -> Vec<Product> {
     products
 }
 
-
 fn main() {
     let mut warehouse: Vec<Product> = load_from_csv();
     
@@ -109,14 +104,25 @@ fn main() {
         println!("1. Add Product");
         println!("2. List All Products");
         println!("3. Search Product");
-        println!("4. Delete Product");
-        println!("5. Save and Exit");
+        println!("4. Update Product Quantity (Add/Reduce)");
+        println!("5. Delete Product");
+        println!("6. Save and Exit");
 
         let choice = get_input::<i32>("👉 Enter your choice: ");
 
         match choice {
             1 => {
                 let name = get_input::<String>("Enter product name: ");
+                
+                // برسی اینکه آیا محصول از قبل وجود دارد یا خیر
+                if let Some(existing_product) = warehouse.iter_mut().find(|p| p.name.trim().eq_ignore_ascii_case(name.trim())) {
+                    println!("⚠️ Product '{}' already exists with quantity {}.", existing_product.name, existing_product.number_of_items);
+                    let add_qty = get_input::<u32>("How many more items do you want to add? ");
+                    existing_product.number_of_items += add_qty;
+                    println!("✅ Quantity updated! New total for '{}' is {}.", existing_product.name, existing_product.number_of_items);
+                    continue;
+                }
+
                 let price = get_input::<f32>("Enter product price: ");
                 let category_str = get_input::<String>("Enter category (Food/Electronic/Clothing): ");
                 let number_of_items = get_input::<u32>("Enter quantity: ");
@@ -131,7 +137,7 @@ fn main() {
                     }
                 };
 
-                warehouse.push(Product { name, price, category, number_of_items });
+                warehouse.push(Product { name: name.trim().to_string(), price, category, number_of_items });
                 println!("✅ Product added successfully!");
             }
             2 => {
@@ -148,17 +154,36 @@ fn main() {
                 }
                 let query = get_input::<String>("🔍 Enter product name to search: ");
                 let filtered: Vec<&Product> = warehouse.iter()
-                    .filter(|p| p.name.to_lowercase().contains(&query.to_lowercase()))
+                    .filter(|p| p.name.to_lowercase().contains(&query.trim().to_lowercase()))
                     .collect();
 
                 if filtered.is_empty() {
-                    println!("Searching for '{}'... No results found.", query);
+                    println!("Searching for '{}'... No results found.", query.trim());
                 } else {
-                    println!("\n🔎 Search Results for '{}':", query);
+                    println!("\n🔎 Search Results for '{}':", query.trim());
                     display_filtered_table(filtered);
                 }
             }
             4 => {
+                // قابلیت جدید: تغییر موجودی کالا (کم یا زیاد کردن)
+                if warehouse.is_empty() {
+                    println!("📭 Warehouse is empty! Nothing to update.");
+                    continue;
+                }
+                display_table(&warehouse);
+                let id = get_input::<usize>("📝 Enter the ID of the product to update: ");
+
+                if id > 0 && id <= warehouse.len() {
+                    let product = &mut warehouse[id - 1];
+                    println!("📦 Current quantity for '{}' is {}.", product.name, product.number_of_items);
+                    let new_qty = get_input::<u32>("Enter the NEW total quantity: ");
+                    product.number_of_items = new_qty;
+                    println!("✅ Quantity updated successfully! New total: {}", product.number_of_items);
+                } else {
+                    println!("❌ Invalid ID!");
+                }
+            }
+            5 => {
                 if warehouse.is_empty() {
                     println!("📭 Nothing to delete. Warehouse is empty!");
                     continue;
@@ -173,7 +198,7 @@ fn main() {
                     println!("❌ Invalid ID!");
                 }
             }
-            5 => {
+            6 => {
                 match save_to_csv(&warehouse) {
                     Ok(_) => println!("💾 Data saved to inventory.csv successfully!"),
                     Err(e) => println!("❌ Error saving data: {}", e),

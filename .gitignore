@@ -1,3 +1,4 @@
 /target
 inventory.csv
 **/*.rs.bk
+Cargo.lock
